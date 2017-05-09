@@ -1,0 +1,1509 @@
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+<html>
+<head>
+<img id ='me0' style = 'visibility: hidden'>
+<img id ='me1' style = 'visibility: hidden'>
+<img id ='me2' style = 'visibility: hidden'>
+<img id ='me3' style = 'visibility: hidden'>
+<img id ='placer' style = 'visibility: hidden'>
+<style>
+/* do not group these rules */
+*::-webkit-input-placeholder {
+    color: #C0C0C0;
+}
+*:-moz-placeholder {
+    /* FF 4-18 */
+    color: #C0C0C0;
+}
+*::-moz-placeholder {
+    /* FF 19+ */
+    color: #C0C0C0;
+}
+*:-ms-input-placeholder {
+    /* IE 10+ */
+    color: #C0C0C0;
+}
+canvas {
+    border: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background-color: #383838;
+}
+#gunlist {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    text-align: right;
+    color: white;
+}
+#gunul {
+    list-style: none;
+}
+#lobby {
+    color: white;
+}
+body {
+    /*background-image: url('https://brandonrucker.files.wordpress.com/2014/12/overcast-1.jpg');*/
+    background-color: #F4F5F5;
+    font-family: Arial;
+}
+#input, #jg, #role {
+    font-size: 20px;
+    color: #4D4D4D;
+    border: 1px solid #C0C0C0;
+    height: 50px;
+    background-color: #FCFCFC;
+    box-shadow: 0px 0px 5px white;
+    border-radius: 5px;
+}
+#input {
+	width: 200px;
+	border-right: none;
+    border-top-right-radius: 0px;
+    border-bottom-right-radius: 0px;
+}
+#jg {
+	border-left: none;
+	color: #C0C0C0;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+#jg:hover {
+	color: #4D4D4D;
+}
+button:focus {
+    outline: none;
+}
+input:focus {
+    outline: none;
+}
+select:focus {
+    outline: none;
+}
+#credit {
+    font-family: Arial;
+    font-size: 15px;
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    color: #C0C0C0;
+}
+#select:focus {
+    outline: none;
+}
+#description {
+	color: #4D4D4D;
+}
+#descbox {
+    color: #4D4D4D;
+    height: 50px;
+    width: 310px;
+}
+</style>
+</head>
+<body onmousedown="mouseDown()" onmouseup="mouseUp()">
+<h id = 'gunlist'>
+<balance id = 'balance'>Balance: $50</balance>
+<ul id = 'gunul'>
+    <li>Automatic Pistol $100 <button id = 'b1'>purchase</button></li>
+    <li>Sniper Rifle $600 <button id = 'b2'>purchase</button></li>
+    <li>Normal Pistol $0 <button id = 'b3'></button></li>
+    <li>Shotgun $1500 <button id = 'b4'>purchase</button></li>
+    <li>Semi-automatic Rifle $2500 <button id = 'b5'>purchase</button></li>
+    <!--<li>Machinegun $2500 <button id = 'b6'>purchase</button></li>-->
+    <!--<li>Rocket Launcher $800 <button id = 'b7'>purchase</button></li>-->
+    <li>Extended Sniper Rifle  $1500 <button id = 'b8'>purchase</button></li>
+</ul>
+<!--
+<select id = 'select'>
+    <option value='wall'>Wall</option>
+    <option value='slab'>Slab</option>
+    <option value='timedbomb'>Timed Bomb</option>
+</select>-->
+
+</h>
+<div id = 'lobby'>
+    <center><h style = 'font-size: 56px; font-family: "Impact"; color: #4D4D4D; text-shadow: 0px 0px 5px white'>Dragon Dodo Online</h>
+    <br><br><br>
+    <br>
+    <input id = 'input' maxlength="7" placeholder="Name"><button id='jg'><u>Join Game</u></button><br>
+    <br>
+    <div id = 'descbox'>
+    <h id = 'description'><b style = 'font-size: 14px;'>MUST READ</b><br>This is a multiplayer game where two teams (<jason style = 'color: lightgreen'>green</jason> and <jason style = 'color: orange'>orange</jason>) battle eachother using guns.</h><br><button id = 'okbutton'>next page</button>
+    </div>
+    <h id = 'credit'>© Jason (Seojoon) Yeon 2017 | All Rights Reserved.</h>
+    <br>
+</div>
+<canvas id = 'canvas'></canvas>
+<script>
+//Disable full page
+$("body").on("contextmenu",function(e){
+    return false;
+});
+
+
+var loc = 'http://do1.herokuapp.com/'; //window.location.href;
+$('#me0').attr('src', loc + 'me0.png');
+$('#me1').attr('src', loc + 'me1.png');
+$('#me2').attr('src', loc + 'me2.png');
+$('#me3').attr('src', loc + 'me3.png');
+$('#placer').attr('src', loc + 'placer.png');
+
+
+
+$('#canvas').hide();
+$('#items').hide();
+$('#high').hide();
+$('#label2').hide();
+$('#label3').hide();
+$('#label4').hide();
+$('#gunlist').hide();
+
+
+var socket;socket = io.connect();
+
+// canvas
+var territorySize = 20 * 15;
+var mapWidth = territorySize * 8 - 2;
+var mapHeight = territorySize * 2 - 2;
+var canvasWidth = 800;
+var canvasHeight = 600;
+
+// cursor
+var cursorX;
+var cursorY;
+var mouseIsDown = false;
+
+// stuff about me
+var me;
+var mygun;
+var mydata;
+var nametagComp;
+var memsg = '';
+
+var canSwitchBlocks = true;
+var balance = 50;
+var myname = '';
+var myteam = '';
+var keyLeft = false;
+var keyRight = false;
+var keyUp = false;
+var keyDown = false;
+var spacebar = false;
+var selectedKey = 'key1';
+var readyToMove = true;
+var myid = '';
+var key1 = false;
+var key2 = false;
+var key3 = false;
+var key4 = false;
+var key5 = false;
+var key6 = false;
+var key7 = false;
+var shifting = false;
+var rotation = 0;
+var gunisready = true;
+var respawnCountdown = 0;
+var placepos = {
+    x: 0,
+    y: 0
+}
+var topos = {
+    x: 100,
+    y: 200
+}
+var gunRotation = 0;
+var gunComp;
+var objectivetext = 'Loading Map...';
+var infotext = '';
+var gameStarted = false;
+var tick = 0;
+
+// stuff about others
+var otherPlayerComp = [];
+var otherPlayerTopos = [];
+
+// entities
+var blockComps = [];
+var blockposX = [];
+var blockposY = [];
+var blockInfo = [];
+
+var bulletCompList = [];
+var bulletDataList = [];
+var animationComps = [];
+
+var coreInformation = [];
+var coreComps = [];
+var landlist = [];
+var mapdata = {
+    name: ''
+}
+var okno = 0;
+var oklist = ["", "CLICK = Shoot gun", "W = Move up<br>A = Move left<br>S = Move down<br>D = Move right", "SHIFT + W = Shift up<br>SHIFT + A = Shift left<br>SHIFT + S = Shift down<br>SHIFT + D = Shift right", "SPACEBAR = Build to your shifting-direction<br><br>(You can only build once the game starts)", "Your team's main objective is to destroy the enemy's core.", "To go to the enemy base, you have to build a bridge. (using spacebar)", "1 = SOS<br>2 = Defend the core!<br>3 = Attack!<br>4 = Follow Me!<br>5 = Fall Back!<br>6 = Affirmative!<br>7 = Negative!", "<b>Thank you for completing the how-to-play!</b><br>You will probably be really confused right now. Join the game with the button above, and you will hopefully understand.<br><br><b>Minimum 4 people required to begin the game! Invite other people with the URL to this site.</b>"];
+
+$('#jg').click(function() {
+    if ($('#input').val().length <= 8) {
+        var data = {
+            mapWidth: mapWidth,
+            name: $('#input').val()
+        }
+        socket.emit('cnt', data);
+        $('#lobby').hide();
+        $('#canvas').show();
+        $('#items').show();
+        $('#high').show();
+        $('#gunlist').show();
+        balance = 50;
+    }
+})
+
+$('#okbutton').click(function() {
+	if (okno <= oklist.length) {
+		okno++;
+		$('#description').html(oklist[okno]);
+		if (okno > oklist.length - 2) {
+			$('#okbutton').hide();
+		}
+	}
+})
+
+function resizeCanvas() {
+    canvasWidth = $(window).width() - 10;
+    canvasHeight = $(window).height() - 10;
+    myGameArea.canvas.width = canvasWidth;
+    myGameArea.canvas.height = canvasHeight;
+    $('#canvas').css('width', '100%')
+    $('#canvas').css('height', '100%')
+
+    //me.x = canvasWidth / 2;
+    //me.y = canvasHeight / 2;
+    gunComp.x = canvasWidth / 2 + 10;
+    gunComp.y = canvasHeight / 2 + 10;
+}
+
+$(window).resize(function() {
+    resizeCanvas();
+});
+$(document).ready(function() {
+    resizeCanvas();
+});
+
+var pistolInfo = {
+    name: 'Pistol',
+    accuracy: 0.3,
+    range: 150,
+    rateoffire: 500,
+    gunlength: 18,
+    gunwidth: 20,
+    bulletsize: 5,
+    shellvelocity: 0.8,
+    cost: 100
+}
+
+var sniperInfo = {
+    name: 'Sniper',
+    accuracy: 0.1,
+    range: 350,
+    rateoffire: 3000,
+    gunlength: 60,
+    gunwidth: 20,
+    bulletsize: 12,
+    shellvelocity: 1.5,
+    cost: 600
+}
+
+var normalInfo = {
+    name: 'normal',
+    accuracy: 0.3,
+    range: 150,
+    rateoffire: 1200,
+    gunlength: 15,
+    gunwidth: 10,
+    bulletsize: 5,
+    shellvelocity: 0.5,
+    cost: 0
+}
+
+var shotgunInfo = {
+    name: 'Shotgun',
+    accuracy: 0.2,
+    range: 60,
+    rateoffire: 2000,
+    gunlength: 30,
+    gunwidth: 20,
+    bulletsize: 4,
+    shellvelocity: 1.0,
+    cost: 1500
+}
+
+var semiautomaticInfo = {
+    name: 'Semiautomatic',
+    accuracy: 0.2,
+    range: 140,
+    rateoffire: 4000,
+    gunlength: 30,
+    gunwidth: 20,
+    bulletsize: 3,
+    shellvelocity: 1.0,
+    cost: 2500
+}
+var uziInfo = {
+    name: 'Uzi',
+    accuracy: 0.2,
+    range: 180,
+    rateoffire: 50,
+    gunlength: 20,
+    gunwidth: 20,
+    bulletsize: 3,
+    shellvelocity: 1.0,
+    cost: 0
+}
+var rocketInfo = {
+    name: 'Rocket',
+    accuracy: 0.2,
+    range: 280,
+    rateoffire: 1500,
+    gunlength: 50,
+    gunwidth: 20,
+    bulletsize: 20,
+    shellvelocity: 0.5,
+    cost: 0
+}
+var extendedInfo = {
+    name: 'Extended',
+    accuracy: 0.05,
+    range: 440,
+    rateoffire: 2500,
+    gunlength: 60,
+    gunwidth: 20,
+    bulletsize: 8,
+    shellvelocity: 2.0,
+    cost: 1500
+}
+
+var gunInfoList = [{
+    name: 'Pistol',
+    status: 'sale'
+}, {
+    name: 'Sniper',
+    status: 'sale'
+}, {
+    name: 'normal',
+    status: 'use'
+}, {
+    name: 'Shotgun',
+    status: 'sale'
+}, {
+    name: 'Semiautomatic',
+    status: 'sale'
+}, {
+    name: 'Uzi',
+    status: 'sale'
+}, {
+    name: 'Rocket',
+    status: 'sale'
+}, {
+    name: 'Extended',
+    status: 'sale'
+}];
+
+var gunLengthTo = 15;
+function manageButtons(no, info) {
+    if (gunInfoList[no - 1].status == 'sale') {
+        if (balance >= info.cost) {
+            gunInfoList[no - 1].status = 'has';
+            $('#b' + no).text('use');
+            addMoney(-1 * info.cost);
+        }
+    } else if (gunInfoList[no - 1].status == 'has') {
+        mygun = info;
+        gunInfoList[no - 1].status = 'use';
+        for (var i = 0; i < gunInfoList.length; i++) {
+            if (i != no - 1) {
+                if (gunInfoList[i].status == 'use') {
+                    gunInfoList[i].status = 'has';
+                    $('#b' + (i + 1)).text('use');
+                }
+            }
+        }
+        $('#b' + no).text('');
+        //gunComp.height = mygun.gunlength;
+        gunLengthTo = mygun.gunlength;
+        gunComp.height = gunLengthTo;
+        gunComp.width = mygun.bulletsize;
+    }
+}
+
+$('#b1').click(function() {
+    manageButtons(1, pistolInfo);
+});
+$('#b2').click(function() {
+    manageButtons(2, sniperInfo);
+});
+$('#b3').click(function() {
+    manageButtons(3, normalInfo);
+});
+$('#b4').click(function() {
+    manageButtons(4, shotgunInfo);
+});
+$('#b5').click(function() {
+    manageButtons(5, semiautomaticInfo);
+});
+$('#b6').click(function() {
+    manageButtons(6, uziInfo);
+});
+$('#b7').click(function() {
+    manageButtons(7, rocketInfo);
+});
+$('#b8').click(function() {
+    manageButtons(8, extendedInfo);
+});
+
+mygun = normalInfo;
+/*
+gunLengthTo = mygun.gunlength;
+gunComp.height = gunLengthTo;
+gunComp.width = mygun.bulletsize;*/
+
+function startGame() {
+    var spawnLocation = {
+        x: 100,
+        y: 200
+    }
+    if (myteam == 'orange') {
+        spawnLocation.x = mapWidth - 98;
+        topos = {
+            x: spawnLocation.x,
+            y: spawnLocation.y
+        }
+    }
+    me = new component(18, 18, "orange", spawnLocation.x, spawnLocation.y);
+    nametagComp = new component(120, 16, "black", canvasWidth / 2, canvasHeight / 2);
+    gunComp = new rotatecomp(2, 30, "lightgreen", canvasWidth/2 + 7.5, canvasHeight/2 + 7.5);
+    myGameArea.start();
+    //$('#display').text('Objective: Capture 8 territories');
+}
+
+var myGameArea = {
+    canvas : document.getElementById('canvas'),
+    start : function() {
+        this.canvas.width = canvasWidth;
+        this.canvas.height = canvasHeight;
+        this.context = this.canvas.getContext("2d");
+        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        this.interval = setInterval(updateGameArea, 33);
+    },
+    clear : function() {
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+}
+
+
+var gunRotateInterval = setInterval(function() {
+    var addiR = 0; if(cursorY <canvasHeight/2){addiR = Math.PI}
+    gunRotation = (Math.atan((cursorX - canvasWidth/2) / (cursorY - canvasHeight/2))) * -1 + addiR;
+}, 100);
+
+var respawnInterval = setInterval(function() {
+    if (respawnCountdown > 0) {
+        respawnCountdown -= 1;
+        objectivetext = 'Respawning in ' + respawnCountdown;
+        if (respawnCountdown == 0) {
+            objectivetext = '';
+        }
+    }
+}, 1000);
+var gunFireInterval = setInterval(function() {
+    if ((mouseIsDown) && (myid != '') && (respawnCountdown == 0)) {
+        if (gunisready) {
+            var repeatTimes = 1;
+            if (mygun.name == 'Shotgun') {
+                repeatTimes = 8;
+            }
+            if (mygun.name == 'Semiautomatic') {
+                repeatTimes = 10;
+            }
+            //var tx = (cursorX - canvasWidth / 2);
+            //var ty = (cursorY - canvasHeight / 2);
+            gunisready = false; var bulletno = 0;
+            for (var i = 0; i < repeatTimes; i++) {
+                var fireDelay = 0;
+                if (mygun.name == 'Semiautomatic') {
+                    fireDelay = i * 30;
+                }
+                setTimeout(function() {
+                    var minuser = 0; bulletno += 1;
+                    if (mygun.name == 'Shotgun') {
+                        minuser = (repeatTimes / -2 + bulletno) / 10;
+                    }
+                    var accuracyRotation = (gunRotation);
+
+                    var inaccuracy = -1/2 * (mygun.accuracy) + (Math.random() * mygun.accuracy);
+                    accuracyRotation += inaccuracy + minuser;
+                    var tx = 10 * Math.sin(accuracyRotation - 3.14);
+                    var ty = -10 * Math.cos(accuracyRotation - 3.14);
+                    tx *= mygun.shellvelocity;
+                    ty *= mygun.shellvelocity;
+                    var data = {
+                        mex: topos.x + 10,
+                        mey: topos.y + 10,
+                        byx: tx,
+                        byy: ty,
+                        id: myid,
+                        team: myteam,
+                        no: 0,
+                        startx: topos.x,
+                        starty: topos.y
+                    }
+                    data.bulletsize = mygun.bulletsize;
+                    data.range = mygun.range;
+                    data.type = mygun.name;
+                    socket.emit('gun', data);
+                    gunLengthTo = mygun.gunlength - 10;
+                }, fireDelay);
+            }
+            setTimeout(function() {
+                gunisready = true;
+            }, mygun.rateoffire);
+        }
+    }
+}, 50);
+
+function drawImg(x, y, r) {
+    var ctx= myGameArea.context;
+    var img = document.getElementById("me" + String(rotation));
+    var mediff = {
+        x: canvasWidth / 2 - me.x,
+        y: canvasHeight / 2 - me.y
+    }
+    var minuser = {
+        x: canvasWidth / 4,
+        y: canvasHeight / 4
+    }
+    ctx.save();
+    ctx.scale(1.8, 1.8);
+    ctx.drawImage(img,x + mediff.x - minuser.x, y + mediff.y - minuser.y ,18,18);
+    ctx.restore();
+}
+function drawPlacer(x, y) {
+    var ctx= myGameArea.context;
+    var img = document.getElementById("placer");
+    var mediff = {
+        x: canvasWidth / 2 - me.x,
+        y: canvasHeight / 2 - me.y
+    }
+    var minuser = {
+        x: canvasWidth / 4,
+        y: canvasHeight / 4
+    }
+    ctx.save();
+    ctx.scale(1.8, 1.8);
+    ctx.drawImage(img,x + mediff.x - minuser.x, y + mediff.y - minuser.y,18,18);
+    ctx.restore();
+}
+
+function component(width, height, color, x, y) {
+    //this.color = color;
+    this.width = width;
+    this.height = height;
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.update = function(alpha) {
+        ctx = myGameArea.context;
+        ctx.fillStyle = this.color;
+        var mediff = {
+            x: canvasWidth / 2 - me.x,
+            y: canvasHeight / 2 - me.y
+        }
+        var minuser = {
+        x: canvasWidth / 4,
+        y: canvasHeight / 4
+    }
+        ctx.save();
+        ctx.scale(1.8, 1.8);
+		ctx.globalAlpha = alpha;
+
+        ctx.fillRect((this.x + mediff.x) - minuser.x, (this.y + mediff.y) - minuser.y, this.width, this.height);
+        ctx.restore();
+    }
+    this.crashWith = function(otherobj) {
+        var myleft = this.x;
+        var myright = this.x + (this.width);
+        var mytop = this.y;
+        var mybottom = this.y + (this.width); //(this.height);
+        var otherleft = otherobj.x;
+        var otherright = otherobj.x + (otherobj.width);
+        var othertop = otherobj.y;
+        var otherbottom = otherobj.y + (otherobj.height);
+        var crash = true;
+        if ((mybottom < othertop) || (mytop > otherbottom) || (myright < otherleft) || (myleft > otherright)) {
+            crash = false;
+        }
+        return crash;
+    }
+}
+
+function rotatecomp(width, height, color, x, y) {
+    this.width = width;
+    this.height = height;
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.update = function(rotateAngle) {
+        if (mygun.name != '') {
+            ctx = myGameArea.context;
+            //ctx.scale(2, 2) //ddd
+            var minuser = {
+                x: canvasWidth / 4,
+                y: canvasHeight / 4
+            }
+            ctx.save();
+            ctx.scale(1.8, 1.8);
+            //camera.position.x = box.position.x + (cameraRadius * Math.sin(rotation));
+            //camera.position.z = box.position.z + (cameraRadius * Math.cos(rotation));
+            var mathAddiX = ((mygun.gunlength) / 2 + gunLengthTo) / 1.8 * Math.sin(rotateAngle - 3.14);
+            var mathAddiY = ((mygun.gunlength) / 2 + gunLengthTo) / 1.8 * Math.cos(rotateAngle - 3.14);
+            ctx.translate(this.x + mathAddiX - minuser.x, this.y - mathAddiY - minuser.y);
+            ctx.rotate(rotateAngle);
+            ctx.fillStyle = this.color;
+            ctx.fillRect(this.width / -2, this.height / -2, this.width, this.height);
+            ctx.restore();
+        }
+    }
+}
+
+var moneyInterval = setInterval(function() {
+    if ((gameStarted) && (respawnCountdown == 0)) {
+        addMoney(25);
+        $('#balance').text('Balance: $' + balance);
+    }
+}, 1000);
+
+function addMoney(amount) {
+    balance += amount;
+    if (balance > 3500) {
+        balance = 3500;
+    }
+    $('#balance').text('Balance: $' + balance);
+}
+function checkBounds(posx, posy) {
+    var allowed = true;
+    if ((posx < 0) || (posx > mapWidth)) {
+        allowed = false;
+    }
+    if ((posy < 0) || (posy > mapHeight)) {
+        allowed = false;
+    }
+    return allowed;
+}
+
+function checkSpaceEmpty(x, y) {
+    var empty = true;
+    var maxdiff = 2;
+    for (var i = 0; i < blockposX.length; i++) {
+        if ((blockposX[i] == x) && (blockposY[i] == y)) {
+            empty = false;break;
+        }
+    }
+    for (var i = 0; i < coreInformation.length; i++) {
+        if ((coreInformation[i].x == x) && (coreInformation[i].y == y)) {
+            empty = false;break;
+        }
+    }
+    return empty;
+}
+
+function checkLandEmpty(x, y) {
+    var empty = true;
+    for (var i = 0; i < landlist.length; i++) {
+        if ((landlist[i].x == x) && (landlist[i].y == y)) {
+            empty = false;break;
+        }
+    }
+    return empty;
+}
+
+function checkLand(x, y) {
+    var hasland = false;
+    for (var i = 0; i < landlist.length; i++) {
+        if ((landlist[i].x == x) && (landlist[i].y == y)) {
+            hasland = true;
+            break;
+        }
+    }
+    return hasland;
+}
+function checkSpawn(x, y) {
+    var allowed = true;
+    if ((x >= mapWidth - 98 - 20) && (x <= mapWidth - 98 + 20) && (y >= 200 - 20) && (y <= 200 + 20)) {
+        allowed = false;
+    }
+
+    if ((x >= 100 - 20) && (x <= 100 + 20) && (y >= 200 - 20) && (y <= 200 + 20)) {
+        allowed = false;
+    }
+    return allowed;
+}
+
+function checkCanMove(x, y) {
+    var empty = true;
+    var maxdiff = 2;
+    for (var i = 0; i < blockposX.length; i++) {
+        if ((blockposX[i] == x) && (blockposY[i] == y)) {
+            if (blockInfo[i].type != 'slab') {
+                empty = false;break;
+            }
+        }
+    }
+    for (var i = 0; i < coreInformation.length; i++) {
+        if ((coreInformation[i].x == x) && (coreInformation[i].y == y)) {
+            empty = false;break;
+        }
+    }
+    return empty;
+}
+
+function updateGameArea() {
+	if ($('#cmd').val() == 'open') {
+		$('#cmd').val('');
+		socket.emit('open', '');
+	}
+    if (checkBounds(placepos.x, placepos.y)) {
+        if (checkLand(placepos.x, placepos.y)) { // sandbag
+            selectedKey = 'key1';
+        } else {
+            selectedKey = 'key2';
+        }
+    }
+    if (memsg == '') {
+        if (key1) {
+            memsg = 'SOS';
+            socket.emit('msg', ['SOS', myid]);
+        }
+        if (key2) {
+            memsg = 'Defend the core!';
+            socket.emit('msg', ['Defend the core!', myid]);
+        }
+        if (key3) {
+            memsg = 'Attack!';
+            socket.emit('msg', ['Attack!', myid]);
+        }
+        if (key4) {
+            memsg = 'Follow Me!';
+            socket.emit('msg', ['Follow Me!', myid]);
+        }
+        if (key5) {
+            memsg = 'Fall Back!';
+            socket.emit('msg', ['Fall Back!', myid]);
+        }
+        if (key6) {
+            memsg = 'Affirmative!';
+            socket.emit('msg', ['Affirmative!', myid]);
+        }
+        if (key7) {
+            memsg = 'Negative!';
+            socket.emit('msg', ['Negative!', myid]);
+        }
+        if (memsg != '') {
+            setTimeout(function() {
+                socket.emit('msg', ['', myid]);
+                setTimeout(function() {
+                    memsg = '';
+                }, 500);
+            }, 2000);
+        }
+    }
+	if ((spacebar) && (canSwitchBlocks) && (mygun.name != '') && (gameStarted) && (respawnCountdown == 0)) {
+        canSwitchBlocks = false;
+        setTimeout(function() {
+            canSwitchBlocks = true;
+        }, 300);
+	    if (selectedKey == 'key1') { // place
+	    	if (balance >= 75) {
+		        if ((checkSpaceEmpty(placepos.x, placepos.y)) && (checkBounds(placepos.x, placepos.y)) && (checkLand(placepos.x, placepos.y)) && (checkSpawn(placepos.x, placepos.y))) {
+
+                    var theType = 'sandbag';
+                    var tcolor = '#466089';
+                    /*
+                    if ($('#select').val() == 'slab') {
+                        theType = 'slab';
+                        tcolor = 'lightgray';
+                    }
+                    if ($('#select').val() == 'timedbomb') {
+                        theType = 'timedbomb';
+                        tcolor = 'blue';
+                    }*/
+
+		            var data = {
+		                x: placepos.x,
+		                y: placepos.y,
+		                hp: 30,
+		                type: theType,
+		                team: myteam,
+                        color: tcolor
+		            }
+	                blockInfo.push(data);
+		            socket.emit('block', data);
+                    addMoney(-75);
+                    blockComps.push(new component(18, 18, tcolor, placepos.x, placepos.y));
+                    blockposX.push(placepos.x);
+                    blockposY.push(placepos.y);
+		        }
+		    }
+	    } else if (selectedKey == 'key2') { // place
+	    	if (balance >= 25) {
+		        if ((checkLandEmpty(placepos.x, placepos.y)) && (checkBounds(placepos.x, placepos.y))) {
+		            console.log(placepos.x + ',' + placepos.y);
+                    var thecolor = 'gray';
+                    if (mapdata.name == 'beach') {
+                        thecolor = '#E6CFAE';
+                    }
+                    if (mapdata.name == 'spikes') {
+                        thecolor = '#a5a5a5';
+                    }
+		            landlist.push(new component(21, 21, thecolor, placepos.x, placepos.y));
+		            var data = {
+		                x: placepos.x,
+		                y: placepos.y,
+		                type: 'land'
+		            }
+		            socket.emit('land', data);
+                    addMoney(-25);
+                    $('#balance').text('Balance: $' + balance);
+		        }
+		    }
+
+	    }
+        /* else if (selectedKey == 'key3') { // place
+	    	if (balance >= 75) {
+		        if ((checkSpaceEmpty(placepos.x, placepos.y)) && (checkBounds(placepos.x, placepos.y)) && checkIfAllyTerritory(placepos.x, placepos.y)) {
+		            console.log(placepos.x + ',' + placepos.y);
+		            blockComps.push(new component(18, 18, 'purple', placepos.x, placepos.y));
+		            blockposX.push(placepos.x);
+		            blockposY.push(placepos.y);
+		            var data = {
+		                x: placepos.x,
+		                y: placepos.y,
+		                team: myteam,
+		                type: 'farm'
+		            }
+	                blockInfo.push(data);
+		            socket.emit('block', data);
+		        }
+		    }
+	    }
+        else if (selectedKey == 'key4') { // place
+	    	if (balance >= 100) {
+	            if ((checkSpaceEmpty(placepos.x, placepos.y)) && (checkBounds(placepos.x, placepos.y))) {
+	                console.log(placepos.x + ',' + placepos.y);
+	                blockComps.push(new component(18, 18, 'blue', placepos.x, placepos.y));
+	                blockposX.push(placepos.x);
+	                blockposY.push(placepos.y);
+	                var data = {
+	                    x: placepos.x,
+	                    y: placepos.y,
+	                    team: myteam,
+	                    type: 'bunker',
+	                    hp: 3
+	                }
+	                blockInfo.push(data);
+	                socket.emit('block', data);
+	            }
+	        }
+        }*/
+    } else if (shifting) { // hand
+        var newrotation = rotation;
+        var tx = 0; var ty = 0;
+        if (keyUp) {ty--};
+        if (keyDown) {ty++};
+        if (keyLeft) {tx--};
+        if (keyRight) {tx++};
+        if ((tx == 0) || (ty == 0)) {
+            if (tx == 0) {
+                if (ty == -1) {newrotation = 0}
+                if (ty == 1) {newrotation = 2}
+            } else if (ty == 0) {
+                if (tx == -1) {newrotation = 3}
+                if (tx == 1) {newrotation = 1}
+            }
+        }
+        rotation = newrotation;
+    } else { // move
+        if ((readyToMove) && (topos.x == me.x) && (topos.y == me.y) && (myid != '') && (mygun.name != '') && (respawnCountdown == 0)) {
+            var byX = 0;
+            var byY = 0;
+            if (keyUp) {byY--};
+            if (keyDown) {byY++};
+            if (keyLeft) {byX--};
+            if (keyRight) {byX++};
+            //me.x += byX; me.y += byY;
+            if (checkBounds(me.x + byX * 20, me.y + byY * 20)) {
+                if ((byX == 0) && (byY == 0)) {} else {
+                    if ((checkCanMove((me.x + byX * 20), (me.y + byY * 20))) && (checkLand(me.x + byX * 20, me.y + byY * 20))) {
+                        readyToMove = false;
+                        topos.x += byX * 20;
+                        topos.y += byY * 20;
+                        setTimeout(function() {
+                            if (readyToMove == false) {
+                                readyToMove = true;
+                            }
+                        }, 100);
+                    }
+                }
+            }
+        }
+    }
+}
+
+var emitInterval = setInterval(function() {
+   var data = {
+        x: topos.x,
+        y: topos.y,
+        id: myid
+    }
+    socket.emit('to', data);
+}, 50);
+
+function moveToTopos(comp, toposb) {
+    var xdiff = comp.x - toposb.x; if (xdiff < 0) {xdiff *= -1}
+    var ydiff = comp.y - toposb.y; if (ydiff < 0) {ydiff *= -1}
+
+    if ((xdiff > 40) || (ydiff > 40)) {
+        comp.x = toposb.x;
+        comp.y = toposb.y;
+    } else {
+        var speed = 2.5;
+        var byx = 0;
+        var byy = 0;
+        if (comp.x != toposb.x) {
+            if (comp.x > toposb.x) {
+                byx = -1;
+            } else if (comp.x < toposb.x) {
+                byx = 1;
+            }
+        }
+        if (comp.y != toposb.y) {
+            if (comp.y > toposb.y) {
+                byy = -1
+            } else if (comp.y < toposb.y) {
+                byy = 1;
+            }
+        }
+        comp.x += byx * speed; //toposb.x;
+        comp.y += byy * speed; //toposb.y;
+    }
+    comp.update(1.0);
+}
+
+
+function returnBy(r) {
+    var byX = 0; var byY = 0;
+    var addiX = 0; var addiY = 0;
+    if (r == 0) {byX = 0; byY = -1} // base
+    else if (r == 1) {byX = 1; byY = 0; addiX = 2; addiY = 2;}
+    else if (r == 2) {byX = 0; byY = 1; addiX = 0; addiY = 4;}
+    else if (r == 3) {byX = -1; byY = 0; addiX = -2; addiY = 2;}
+    var object = {
+        byx: byX * 18 + addiX,
+        byy: byY * 18 + addiY - 2
+    }
+    return object;
+}
+
+function checkPixelRange(x, y) {
+    var radius = 90;
+    var withinRange = false;
+    if ((topos.x >= x - radius) && (topos.x <= x + radius) && (topos.y >= y - radius) && (topos.y <= y + radius)) {
+        withinRange = true;
+    }
+    return withinRange;
+}
+
+var bgx = 0;
+var bgy = 0;
+
+var moveInterval = setInterval(function() {
+    tick += 1;
+    var mediff = {
+        x: canvasWidth / 2 - me.x,
+        y: canvasHeight / 2 - me.y
+    }
+    if (mapdata.name != 'space') {
+        bgx = mediff.x;
+        bgy = mediff.y;
+        $('canvas').css('background-position', (bgx * 1.8) + 'px ' + (bgy * 1.8) + 'px');
+    }
+    myGameArea.clear();
+
+    var byplace = returnBy(rotation);
+
+    placepos.x = topos.x + byplace.byx;
+    placepos.y = topos.y + byplace.byy;
+    for (var i=0;i<landlist.length;i++) {
+        landlist[i].x -= 1; landlist[i].y -= 1;
+        landlist[i].update(1.0);
+        landlist[i].x += 1; landlist[i].y += 1;
+    }
+    if (checkBounds(placepos.x, placepos.y)) {
+        drawPlacer(placepos.x, placepos.y);
+    }
+    var minuser = {
+        x: canvasWidth / 4,
+        y: canvasHeight / 4
+    }
+    for (var i=0;i<otherPlayerComp.length;i++) {
+        moveToTopos(otherPlayerComp[i], otherPlayerTopos[i]);
+        var ctx = myGameArea.context;
+        ctx.font = "15px Arial";
+        ctx.save();
+        ctx.scale(1.8, 1.8);
+        ctx.fillStyle = otherPlayerTopos[i].team;
+        ctx.fillText((otherPlayerTopos[i].name) + ' ' + otherPlayerTopos[i].hp + 'HP', otherPlayerComp[i].x + mediff.x - minuser.x, otherPlayerComp[i].y + mediff.y - minuser.y);
+        if ((otherPlayerTopos[i].team == myteam) && (tick % 10 > 3)) {
+            ctx.font = "25px Arial";
+            ctx.fillText((otherPlayerTopos[i].msg), otherPlayerComp[i].x + mediff.x - minuser.x, otherPlayerComp[i].y + mediff.y - minuser.y - 30);
+        }
+        ctx.restore();
+    }
+    for (var i=0;i<blockComps.length;i++) {
+        if (blockInfo[i].type != 'slab') {
+            blockComps[i].update(1.0);
+        } else {
+            blockComps[i].update(0.2);
+        }
+    }
+    for (var i=0;i<coreComps.length;i++) {
+        coreComps[i].update(1.0);
+    }
+    for (var i=0;i<bulletCompList.length;i++) {
+        bulletCompList[i].x += bulletDataList[i].byx;
+        bulletCompList[i].y += bulletDataList[i].byy;
+        bulletCompList[i].update(1.0);
+        
+    }
+    var bgmovex = me.x - topos.x;
+    var bgmovey = me.y - topos.y;
+    moveToTopos(me, topos);
+    drawImg(me.x, me.y, rotation);
+	if (gunLengthTo != mygun.gunlength) {
+		if (gunLengthTo < mygun.gunlength) {
+			gunLengthTo += 1;
+		} else {
+			gunLengthTo -= 1;
+		}
+	}
+    if (gunisready) {
+    	gunComp.color = '#4286f4';
+    } else {
+    	gunComp.color = '#f47441';
+    }
+    gunComp.height = gunLengthTo;
+    gunComp.update(gunRotation);
+    for (var i=0;i<animationComps.length;i++) {
+    	animationComps[i].x += 1;
+    	animationComps[i].y += 1;
+    	animationComps[i].width -= 2;
+    	animationComps[i].height -= 2;
+    	if (animationComps[i].width <= 0) {
+    		animationComps.splice(i, 1);
+    	} else {
+    		animationComps[i].update(0.5);
+    	}
+    }
+    nametagComp.x = me.x - 48;
+    nametagComp.y = me.y - 28;
+    nametagComp.update(0.4);
+
+
+    var ctx = myGameArea.context;
+    ctx.font = "15px Arial";
+    ctx.fillStyle = mydata.team;
+    ctx.textAlign = 'center';
+    ctx.save();
+    ctx.scale(1.8, 1.8);
+    ctx.fillText(mydata.name + ' ' + mydata.hp + 'HP', canvasWidth / 2 + 10 - minuser.x, canvasHeight / 2 - 15 - minuser.y);
+    if (tick % 10 > 3) {
+        ctx.font = "25px Arial";
+        ctx.fillText(memsg, canvasWidth / 2 + 10 - minuser.x, canvasHeight / 2 - 45 - minuser.y);
+    }
+    ctx.restore();
+    ctx.font = "15px Arial";
+    ctx.fillStyle = 'black';
+    if (mapdata.name == 'space') {
+        ctx.fillStyle = 'white';
+    }
+    ctx.textAlign = 'left';
+    ctx.fillText('Kills: ' + mydata.kills, 10, 20);
+
+/*
+    var ctx2 = myGameArea.context;
+    ctx2.font = "35px Arial";
+    ctx2.fillStyle = 'black';
+    ctx2.textAlign = 'center';
+
+    ctx2.fillText(objectivetext, canvasWidth / 2, canvasHeight / 2 - 100);*/
+    function drawStroked(text) {
+        var x = canvasWidth / 2;
+        var y = 200; //canvasHeight / 2 - 100;
+        var ctx2 = myGameArea.context;
+        ctx2.font = "40px Sans-serif"
+        ctx2.strokeStyle = 'black';
+        ctx2.lineWidth = 8;
+        ctx.miterLimit=2;
+        ctx2.textAlign = 'center';
+        ctx2.strokeText(text, x, y);
+        ctx2.fillStyle = 'white';
+        ctx2.fillText(text, x, y);
+    };
+    drawStroked(objectivetext);
+    function drawStrokedInfo(text) {
+        var x = canvasWidth / 2;
+        var y = 300; //canvasHeight / 2 - 100;
+        var ctx2 = myGameArea.context;
+        ctx2.font = "20px Sans-serif"
+        ctx2.strokeStyle = 'black';
+        ctx2.lineWidth = 4;
+        ctx.miterLimit=2;
+        ctx2.textAlign = 'center';
+        ctx2.strokeText(text, x, y);
+        ctx2.fillStyle = mydata.team;
+        ctx2.fillText(text, x, y);
+    };
+    drawStrokedInfo(infotext);
+}, 33);
+
+function newTo(data) {
+    if (myid != '') {
+        var myindex = 0;
+        var newdataObject = data;
+        for (var i=0;i<data.length;i++) {
+            if (data[i].id == myid) {
+                myindex = i
+                mydata = data[i];
+                break;
+            }
+        };
+        newdataObject.splice(myindex, 1);
+        if (newdataObject.length == otherPlayerComp.length) {
+            for (var i=0;i<newdataObject.length;i++) {
+                otherPlayerTopos[i].x = newdataObject[i].x;
+                otherPlayerTopos[i].y = newdataObject[i].y;
+                otherPlayerTopos[i].id = newdataObject[i].id;
+                otherPlayerTopos[i].hp = newdataObject[i].hp;
+                otherPlayerTopos[i].team = newdataObject[i].team;
+                otherPlayerTopos[i].name = newdataObject[i].name;
+                otherPlayerTopos[i].msg = newdataObject[i].msg;
+                otherPlayerTopos[i].kills = newdataObject[i].kills;
+            }
+        } else {
+            otherPlayerComp = []; otherPlayerTopos = [];
+            for (var i = 0; i < newdataObject.length; i++) {
+                var thecolor = newdataObject[i].team;
+                var comp = new component(18, 18, thecolor, newdataObject[i].x, newdataObject[i].y);
+                otherPlayerComp.push(comp);
+                var object = {
+                    x: newdataObject[i].x,
+                    y: newdataObject[i].y,
+                    id: newdataObject[i].id,
+                    hp: newdataObject[i].hp,
+                    team: newdataObject[i].team,
+                    name: newdataObject[i].name,
+                    msg: newdataObject[i].msg,
+                    kills: newdataObject[i].kills,
+                }
+                otherPlayerTopos.push(object);
+            }
+        }
+    }
+}
+socket.on('heartbeat', newTo);
+
+function gotid(data) {
+    myid = String(data.id);
+    myteam = String(data.team);
+    //me.color = myteam;
+    $('#label2').css('background-color', myteam);
+    startGame();
+    me.color = myteam;
+}
+socket.on('id', gotid);
+
+function killplayer(data) {
+    if (myid != '') {
+        if (myid == data) {
+            respawnCountdown = 10;
+            //socket.disconnect();
+            //$('html').html('<center><h>You died!</h></center>');
+            if (myteam == 'orange') {
+                topos.x = mapWidth - 98;
+                topos.y = 200;
+                me.x = mapWidth - 98;
+                me.y = 200;
+            } else if (myteam == 'lightgreen') {
+                topos.x = 100;
+                topos.y = 200;
+                me.x = 100;
+                me.y = 200;
+            }
+            var data = {
+                x: topos.x,
+                y: topos.y,
+                id: myid
+            }
+            socket.emit('to', data);
+        } else {
+            /*
+            var index = -1;
+            for (var i = 0; i < otherPlayerTopos.length; i++) {
+                if (otherPlayerTopos[i].id == data) {
+                    index = i; break;
+                }
+            }
+            var spawnx = 100;
+            if (otherPlayerTopos[index].team == 'orange') {
+                spawnx = mapWidth - 98;
+            }
+            otherPlayerTopos[index].x = spawnx;
+            otherPlayerTopos[index].y = 200;
+            otherPlayerTopos[index].hp = 50;
+            otherPlayerComp[index].x = spawnx;
+            otherPlayerComp[index].y = 200;*/
+        }
+    }
+}
+socket.on('killplayer', killplayer);
+
+
+function killbullet(data) {
+    if (myid != '') {
+        for (var i = 0; i < bulletDataList.length; i++) {
+        	if (bulletDataList[i].no == data) {
+        		bulletDataList.splice(i, 1);
+        		bulletCompList.splice(i, 1);
+        		break;
+        	}
+        }
+    }
+}
+socket.on('killbullet', killbullet);
+
+function animation(data) {
+    if (myid != '') {
+        animationComps.push(new component(20, 20, 'red', data.x, data.y));
+    }
+}
+socket.on('animation', animation);
+
+
+function gun(data) {
+    if (myid != '') {
+    	var bulletWidth = data.bulletsize;
+        bulletCompList.push(new component(bulletWidth, bulletWidth, 'red', data.mex - bulletWidth/2, data.mey - bulletWidth/2));
+        bulletDataList.push(data);
+    }
+}
+socket.on('gun', gun);
+
+function exit(data) {
+	socket.disconnect();
+    $('#html').html("<center>Warping you to next game...<br><br>Loading...</center>")
+	location.reload();
+}
+socket.on('exit', exit);
+
+function killblock(data) {
+    if (myid != '') {
+        for (var i = 0; i < blockComps.length; i++) {
+            if ((blockComps[i].x == data.x) && (blockComps[i].y == data.y)) {
+                blockComps.splice(i, 1);
+                blockposX.splice(i, 1);
+                blockposY.splice(i, 1);
+                blockInfo.splice(i, 1);
+                break;
+            }
+        }
+    }
+}
+socket.on('killblock', killblock);
+
+function placeBlock(data) {
+    if (myid != '') {
+        var tcolor = '';
+    	if (data.type == 'sandbag') {
+            tcolor = data.color; //'#466089'; //data.team;
+    	} else if (data.type == 'slab') {
+            tcolor = 'lightgray';
+        } else if (data.type == 'farm') {
+            tcolor = 'purple';
+    	} else if (data.type == 'unbreakable') {
+            tcolor = '#686868';
+    	}
+        blockComps.push(new component(18, 18, tcolor, data.x, data.y));
+        blockposX.push(data.x);
+        blockposY.push(data.y);
+        blockInfo.push(data);
+    }
+}
+socket.on('block', placeBlock);
+
+
+
+function placeCore(data) {
+    coreInformation.push(data);
+    coreComps.push(new component(18, 18, 'black', data.x, data.y));
+}
+socket.on('core', placeCore);
+
+function killCore(data) {
+    for (var i = 0; i < coreInformation.length; i++) {
+        if ((coreInformation[i].x == data.x) && (coreInformation[i].y == data.y)) {
+            coreInformation.splice(i, 1)
+            coreComps.splice(i, 1)
+        }
+    }
+    if (data.team == myteam) {
+        objectivetext = 'Ally Core Damaged!'
+    } else {
+        objectivetext = 'Enemy Core Damaged!'
+    }
+    setTimeout(function() {
+        objectivetext = '';
+    }, 3000);
+}
+socket.on('killcore', killCore);
+
+
+function placeland(data) {
+    var tcolor = 'gray';
+    if (mapdata.name == 'beach') {
+        tcolor = '#E6CFAE';
+    }
+    if (mapdata.name == 'spikes') {
+        tcolor = '#a5a5a5';
+    }
+    if (checkSpawn(data.x, data.y) == false) {
+        tcolor = '#a38965'; // spawn color
+    }
+    //tcolor = '#a38965'; // spawn color
+    landlist.push(new component(21, 21, tcolor, data.x, data.y));
+}
+socket.on('land', placeland);
+
+
+function tp(data) {
+    if (data.id == myid) {
+        topos.x = data.x;
+        topos.y = data.y;
+    }
+}
+socket.on('tp', tp);
+
+function victory(data) {
+    objectivetext = data.toUpperCase() + ' Has Won The Game!';
+}
+socket.on('victory', victory);
+
+
+function start(data) {
+    if (typeof data.map != 'undefined') {
+        mapdata.name = data.map;
+        var landcolor = 'gray';
+        if (mapdata.name == 'space') {
+            $('canvas').css('background-image', "url('http://www.freebyte.com/img34/gallery/backs/space4.gif')");
+        } else if (mapdata.name == 'beach') {
+            landcolor = '#E6CFAE';
+            $('canvas').css('background-image', "url('http://mirror2.cze.cz/textures/water-texture-3.jpg')");
+        } else if (mapdata.name == 'spikes') {
+            landcolor = '#a5a5a5';
+            //background-size: 80px 60px;
+            $('canvas').css('background-size', "64px 64px");
+            $('canvas').css('background-image', "url('http://i.imgur.com/fGPGyyT.png')");
+            //$('canvas').css('background-image', "url('http://silviahartmann.com/background-tile-art/images/grey-repeating-background-5.jpg')");
+        }
+        for (var i = 0; i < landlist.length; i++) {
+            if (checkSpawn(landlist[i].x, landlist[i].y)) {
+                landlist[i].color = landcolor;
+            }
+        }
+        //$('canvas').src = "url('http://www.freebyte.com/img34/gallery/backs/space4.gif');";
+    }
+    if (data.bool == true) {
+        if (gameStarted == false) {
+            gameStarted = true;
+            objectivetext = 'Let The Game Begin!';
+            setTimeout(function() {
+                objectivetext = '';
+            }, 3000);
+        }
+    } else {
+        if (data.cd != 11) {
+            objectivetext = data.cd;
+        } else {
+            objectivetext = 'Waiting For Players... ' + data.no + '/4';
+        }
+    }
+
+}
+socket.on('start', start);
+
+/*
+function death(data) {a
+    if (data == myid) {
+        window.location = 'https://www.google.com/';
+    }
+}
+socket.on('death', death);*/
+
+
+document.onkeydown = makeKeyTrue;
+document.onkeyup = makeKeyFalse;
+function makeKeyTrue(e) {
+    e = e || window.event;
+    if (e.keyCode == '87') {keyUp = true}
+    else if (e.keyCode == '83') {keyDown = true}
+    else if (e.keyCode == '65') {keyLeft = true}
+    else if (e.keyCode == '68') {keyRight = true}
+    else if (e.keyCode == '16') {shifting = true}
+    else if (e.keyCode == '32') {spacebar = true}
+    else if (e.keyCode == '49') {key1 = true}
+    else if (e.keyCode == '50') {key2 = true}
+    else if (e.keyCode == '51') {key3 = true}
+    else if (e.keyCode == '52') {key4 = true}
+    else if (e.keyCode == '53') {key5 = true}
+    else if (e.keyCode == '54') {key6 = true}
+    else if (e.keyCode == '55') {key7 = true}
+}
+function makeKeyFalse(e) {
+    e = e || window.event;
+    if (e.keyCode == '87') {keyUp = false}
+    else if (e.keyCode == '83') {keyDown = false}
+    else if (e.keyCode == '65') {keyLeft = false}
+    else if (e.keyCode == '68') {keyRight = false}
+    else if (e.keyCode == '16') {shifting = false}
+    else if (e.keyCode == '32') {spacebar = false}
+    else if (e.keyCode == '49') {key1 = false}
+    else if (e.keyCode == '50') {key2 = false}
+    else if (e.keyCode == '51') {key3 = false}
+    else if (e.keyCode == '52') {key4 = false}
+    else if (e.keyCode == '53') {key5 = false}
+    else if (e.keyCode == '54') {key6 = false}
+    else if (e.keyCode == '55') {key7 = false}
+}
+document.onmousemove = function(e){
+    cursorX = e.pageX;
+    cursorY = e.pageY;
+}
+function mouseDown() {
+    mouseIsDown = true;
+}
+function mouseUp() {
+    mouseIsDown = false;
+}
+</script>
+<br>
+</body>
+</html>
